@@ -26,24 +26,7 @@ class Ip
 	public static function getUserIP()
 	{
 		$ip = self::_real_getUserIP();
-
-		if ((strstr($ip, ',') !== false) || (strstr($ip, ' ') !== false))
-		{
-			$ip = str_replace(' ', ',', $ip);
-			$ip = str_replace(',,', ',', $ip);
-			$ips = explode(',', $ip);
-			$ip = '';
-			while (empty($ip) && !empty($ips))
-			{
-				$ip = array_pop($ips);
-				$ip = trim($ip);
-			}
-		}
-		else
-		{
-			$ip = trim($ip);
-		}
-
+		$ip = trim($ip);
 		return $ip;
 	}
 
@@ -54,58 +37,50 @@ class Ip
 	 */
 	private static function _real_getUserIP()
 	{
-		// Normally the $_SERVER superglobal is set
-		if (isset($_SERVER))
-		{
-			// Do we have an x-forwarded-for HTTP header (e.g. NginX)?
-			if (array_key_exists('HTTP_X_FORWARDED_FOR', $_SERVER) && !empty($_SERVER['HTTP_X_FORWARDED_FOR']))
-			{
-				return $_SERVER['HTTP_X_FORWARDED_FOR'];
-			}
-
-			// Do we have a client-ip header (e.g. non-transparent proxy)?
-			if (array_key_exists('HTTP_CLIENT_IP', $_SERVER) && !empty($_SERVER['HTTP_CLIENT_IP']))
-			{
-				return $_SERVER['HTTP_CLIENT_IP'];
-			}
-
-			// Normal, non-proxied server or server behind a transparent proxy
-			if (!empty($_SERVER['REMOTE_ADDR']))
-			{
-				return $_SERVER['REMOTE_ADDR'];
-			}
-		}
-
-		// This part is executed on PHP running as CGI, or on SAPIs which do
-		// not set the $_SERVER superglobal
-
-		// If getenv() is disabled, you're screwed
-		if (!function_exists('getenv'))
-		{
-			return '';
-		}
-
-		// Do we have an x-forwarded-for HTTP header?
-		if (getenv('HTTP_X_FORWARDED_FOR'))
-		{
-			return getenv('HTTP_X_FORWARDED_FOR');
-		}
-
-		// Do we have a client-ip header?
-		if (getenv('HTTP_CLIENT_IP'))
-		{
-			return getenv('HTTP_CLIENT_IP');
-		}
-
-		// Normal, non-proxied server or server behind a transparent proxy
-		if (getenv('REMOTE_ADDR'))
-		{
-			return getenv('REMOTE_ADDR');
-		}
-
-		// Catch-all case for broken servers, apparently
-		return '';
+		return _real_getUserIP_helper();
 	}
+
+	private static function _real_getUserIP_helper()
+	{
+		$ip_keys = array('HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED', 'REMOTE_ADDR');
+		$getenv_exists = function_exists('getenv');
+		$server_exists = ( (isset($_SERVER)) && !(empty($_SERVER)) );
+		foreach ($ip_keys as $key) {
+			$possible_ips = '';
+			if ( ($server_exists) && (array_key_exists($key, $_SERVER) === true)  ) {
+				$possible_ips = $_SERVER[$key];
+			}
+			elseif ($getenv_exists) {
+				$possible_ips = getenv($key);
+			}
+			if ((strstr($possible_ips, ',') !== false) || (strstr($possible_ips, ' ') !== false)) {
+				$possible_ips = str_replace(' ', ',', $possible_ips);
+				$possible_ips = str_replace(',,', ',', $possible_ips);
+			}
+			foreach (explode(',', $possible_ips) as $ip) {
+			// trim for safety measures
+				$ip = trim($ip);
+				// attempt to validate IP
+				if (validate_ip($ip)) {
+					return $ip;
+				}
+			}
+		}
+		return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+	}
+
+	/**
+	 * Ensures an ip address is both a valid IP and does not fall within
+	 * a private network range.
+	 */
+	private static function validate_ip($ip)
+	{
+		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+			return false;
+		}
+		return true;
+	}
+
 
 	/**
 	 * Works around the REMOTE_ADDR not containing the user's IP
