@@ -37,7 +37,7 @@ class Ip
 	 */
 	private static function _real_getUserIP()
 	{
-		return _real_getUserIP_helper();
+		return self::_real_getUserIP_helper();
 	}
 
 	private static function _real_getUserIP_helper()
@@ -61,7 +61,7 @@ class Ip
 			// trim for safety measures
 				$ip = trim($ip);
 				// attempt to validate IP
-				if (validate_ip($ip)) {
+				if (self::validate_ip($ip)) {
 					return $ip;
 				}
 			}
@@ -75,7 +75,7 @@ class Ip
 	 */
 	private static function validate_ip($ip)
 	{
-		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_IPV6 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
 			return false;
 		}
 		return true;
